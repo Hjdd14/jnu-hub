@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 窗口背景：与 Compose 深色主题 background 一致，避免 Activity 切换时出现纯色 -->
+    <color name="jnu_window_bg">#FF121212</color>
+</resources>

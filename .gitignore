@@ -1,0 +1,79 @@
+# ══════════════════════════════════════════════════════════
+#  暨大通 JNU Hub — .gitignore
+#  目标：仓库里不出现任何个人信息、抓包数据与构建产物
+# ══════════════════════════════════════════════════════════
+
+# ── 个人数据（务必不要提交）──────────────────────────────
+# 真机截图：含真实学号、姓名、成绩、宿舍水电账号
+_shots/
+# 调试与抓包：HAR 文件内含 Cookie / Token / 学号，泄露等于账号被盗
+_research/
+# 开发过程中的实测记录：含真实学号、姓名、户号等
+docs/
+# 临时工作目录（协作者产生的中间截图 / 脚本）
+.tmp-*/
+tmp-*/
+.tmp/
+# 本地开发辅助脚本（内含本机路径与设备序列号）
+scripts/
+# 任何私有的本地账号记录
+*.har
+*.pcap
+local_accounts*
+private/
+
+# ── Android 构建产物 ─────────────────────────────────────
+build/
+*/build/
+app/build/
+app/release/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+captures/
+.externalNativeBuild/
+.cxx/
+release/
+
+# ── Gradle ──────────────────────────────────────────────
+.gradle/
+**/.gradle/
+gradle-app.setting
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ── 本地配置（含本机路径 / 签名信息）────────────────────
+local.properties
+keystore.properties
+*.jks
+*.keystore
+signing.properties
+
+# ── IDE ─────────────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+*.launch
+
+# ── 日志与临时文件 ───────────────────────────────────────
+*.log
+*.hprof
+*.tmp
+*.swp
+*~
+.DS_Store
+Thumbs.db
+/tmp/
+temp/
+
+# ── Kotlin / Java ───────────────────────────────────────
+.kotlin/
+out/
+bin/

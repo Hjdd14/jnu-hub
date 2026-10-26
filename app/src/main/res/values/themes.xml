@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.JnuHub" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!--
+            窗口背景必须是深色：App 整体是深色主题，若这里留白，
+            Activity 销毁/切换瞬间会露出浅色背景，
+            用户看到的就是「从 WebView 返回后一片纯色」。
+        -->
+        <item name="android:windowBackground">@color/jnu_window_bg</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+</resources>

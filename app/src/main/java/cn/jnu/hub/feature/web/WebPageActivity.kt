@@ -1,0 +1,300 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
+package cn.jnu.hub.feature.web
+
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Bundle
+import android.webkit.CookieManager
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import cn.jnu.hub.core.network.HttpClient
+import cn.jnu.hub.ui.theme.JnuHubTheme
+
+/**
+ * 通用 WebView 容器：用于尚未原生化/需要官方页面的场景
+ * （收银台、服务中心、Panopto 回放等）。
+ * 登录态与 App 共享同一份 Cookie。
+ */
+class WebPageActivity : ComponentActivity() {
+
+    /** 当前展示的 WebView，供返回键与销毁时清理 */
+    private var currentWebView: android.webkit.WebView? = null
+
+    /**
+     * 返回键直接关闭本页。
+     *
+     * 不在这里拦截的话，WebView 的 history 会让「返回」在页面内来回跳；
+     * 而若叠了多个实例，关掉最上面那个后露出的是下一个同类页面 ——
+     * 用户看到的就是「按返回变成纯色页、还要再按一次系统返回」。
+     */
+    override fun onDestroy() {
+        runCatching {
+            currentWebView?.let { wv ->
+                wv.stopLoading()
+                wv.webChromeClient = null
+                (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                wv.loadUrl("about:blank")
+                wv.removeAllViews()
+                wv.destroy()
+            }
+            currentWebView = null
+        }
+        super.onDestroy()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // 返回键 = 关闭本页（否则会被 WebView 的 history 吞掉）
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : androidx.activity.OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    isEnabled = false
+                    finish()
+                }
+            },
+        )
+        enableEdgeToEdge()
+        val url = intent.getStringExtra(EXTRA_URL).orEmpty()
+        val title = intent.getStringExtra(EXTRA_TITLE).orEmpty()
+        val captureTicket = intent.getBooleanExtra(EXTRA_CAPTURE_TICKET, false)
+
+        setContent {
+            JnuHubTheme {
+                WebPageScreen(
+                    url = url,
+                    initialTitle = title,
+                    captureTicket = captureTicket,
+                    onBack = { finish() },
+                )
+            }
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    @Composable
+    private fun WebPageScreen(
+        url: String,
+        initialTitle: String,
+        captureTicket: Boolean,
+        onBack: () -> Unit,
+    ) {
+        var progress by remember { mutableIntStateOf(0) }
+        var title by remember { mutableStateOf(initialTitle.ifBlank { "网页" }) }
+        var webViewRef = remember { mutableStateOf<WebView?>(null) }
+        // 检测「请在微信客户端打开链接」这类微信专属页面，给出明确的引导而不是让用户看错误页
+        var wechatOnlyPage by remember { mutableStateOf(false) }
+
+        /**
+         * CAS 回调检测：URL 上出现 ?ticket=ST-xxx 时写入 UtilityTicketBridge，
+         * 然后关闭本页，让调用方（水电查询页）用票据换取户号。
+         *
+         * 站点自身也用同样的方式取票（all-classes.js :: getRequest）。
+         */
+        val localCtx = androidx.compose.ui.platform.LocalContext.current
+        val tryCapture = remember(captureTicket, localCtx) {
+            { candidate: String? ->
+                if (captureTicket && candidate != null) {
+                    if (cn.jnu.hub.feature.utility.UtilityTicketBridge.offer(candidate)) {
+                        // 票据已拿到，无需继续留在 WebView
+                        (localCtx as? android.app.Activity)?.finish()
+                    }
+                }
+                Unit
+            }
+        }
+
+        // 兜底：初始 URL 本身就可能已带票据（极端情况），或页面在
+        // WebViewClient 挂载前就完成加载，此时补查一次。
+        LaunchedEffect(url) {
+            if (captureTicket) {
+                tryCapture(url)
+                // 再看一眼 WebView 当前地址（重定向后 url 参数仍是旧值）
+                webViewRef.value?.url?.let { tryCapture(it) }
+            }
+        }
+
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = { Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { webViewRef.value?.reload() }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "刷新")
+                        }
+                    },
+                    windowInsets = WindowInsets.statusBars,
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                    ),
+                )
+            },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                if (progress in 1..99) {
+                    LinearProgressIndicator(
+                        progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().height(2.dp),
+                    )
+                }
+                if (wechatOnlyPage) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                "此页面需要微信打开",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "这是学校专门的微信服务页面，在浏览器里无法使用。" +
+                                    "请复制链接到微信中打开，或在微信里搜索「暨南大学」公众号后进入对应服务。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row {
+                                FilledTonalButton(onClick = {
+                                    val cm = localCtx.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                        as android.content.ClipboardManager
+                                    cm.setPrimaryClip(
+                                        android.content.ClipData.newPlainText("url", url),
+                                    )
+                                    android.widget.Toast.makeText(
+                                        localCtx, "链接已复制，可粘贴到微信中打开", android.widget.Toast.LENGTH_LONG,
+                                    ).show()
+                                }) { Text("复制链接") }
+                                Spacer(Modifier.width(8.dp))
+                                OutlinedButton(onClick = {
+                                    runCatching {
+                                        localCtx.startActivity(
+                                            android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(url),
+                                            ),
+                                        )
+                                    }
+                                }) { Text("用其他应用打开") }
+                            }
+                        }
+                    }
+                }
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            currentWebView = this
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.databaseEnabled = true
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = true
+                            settings.builtInZoomControls = true
+                            settings.displayZoomControls = false
+                            settings.userAgentString = HttpClient.USER_AGENT
+                            settings.mixedContentMode =
+                                android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                            webViewClient = object : WebViewClient() {
+                                override fun onPageStarted(v: WebView?, u: String?, f: Bitmap?) {
+                                    super.onPageStarted(v, u, f)
+                                    // CAS 回跳（?ticket=ST-xxx）通常发生在页面开始加载时
+                                    tryCapture(u)
+                                }
+
+                                override fun onPageFinished(v: WebView?, u: String?) {
+                                    super.onPageFinished(v, u)
+                                    progress = 100
+                                    tryCapture(u)
+                                    v?.title?.takeIf { it.isNotBlank() }?.let { title = it }
+                                    // 微信专属页面检测：这类页面在普通浏览器/WebView 里只会显示一句提示
+                                    v?.evaluateJavascript(
+                                        "(document.body && document.body.innerText || \"\").indexOf(\"微信\") >= 0 && (document.body.innerText.indexOf(\"客户端\") >= 0 || document.body.innerText.indexOf(\"打开链接\") >= 0)",
+                                    ) { r -> if (r == "true") wechatOnlyPage = true }
+                                    // 回写 Cookie，保证与 OkHttp 同步
+                                    val cm = CookieManager.getInstance()
+                                    val map = mutableMapOf<String, String>()
+                                    cm.getCookie(u)?.takeIf { it.isNotBlank() }?.let { map[u ?: ""] = it }
+                                    if (map.isNotEmpty()) {
+                                        HttpClient.cookieJar().syncFromWebView(map)
+                                    }
+                                }
+
+                                override fun shouldOverrideUrlLoading(
+                                    v: WebView?,
+                                    req: WebResourceRequest?,
+                                ): Boolean {
+                                    val u = req?.url?.toString() ?: return false
+                                    // 重定向链上的每一跳都检查一次，捕获 CAS 票据
+                                    tryCapture(u)
+                                    if (!u.startsWith("http")) {
+                                        runCatching {
+                                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
+                                        }
+                                        return true
+                                    }
+                                    return false
+                                }
+                            }
+                            webChromeClient = object : android.webkit.WebChromeClient() {
+                                override fun onProgressChanged(v: WebView?, p: Int) { progress = p }
+                            }
+                            loadUrl(url)
+                            webViewRef.value = this
+                        }
+                    },
+                    onRelease = { it.destroy() },
+                )
+            }
+        }
+    }
+
+    companion object {
+        const val EXTRA_URL = "extra_url"
+        const val EXTRA_TITLE = "extra_title"
+
+        /** 为 true 时检测 URL 上的 ?ticket=ST-xxx 并写入 UtilityTicketBridge */
+        const val EXTRA_CAPTURE_TICKET = "extra_capture_ticket"
+
+        fun intent(context: android.content.Context, url: String, title: String): Intent =
+            Intent(context, WebPageActivity::class.java).apply {
+                putExtra(EXTRA_URL, url)
+                putExtra(EXTRA_TITLE, title)
+            }
+
+        /** 用于需要捕获 CAS 票据的场景（如同步水电账号） */
+        fun intentForTicket(
+            context: android.content.Context,
+            url: String,
+            title: String,
+        ): Intent = intent(context, url, title).apply {
+            putExtra(EXTRA_CAPTURE_TICKET, true)
+        }
+    }
+}

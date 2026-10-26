@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  暨大通 · 应用图标
+
+  依据暨南大学官网「校徽设计意念」绘制：
+    · 一艘「中国特点的帆船」—— 梯形硬帆 + 竹竿横桁，而非西式三角帆
+    · 船体厚实，船头微翘，富有文化承载力度
+    · 底部三道波浪呼应「东渐于海，西被于流沙」的出处
+    · 标准色取大海与天空的蓝绿色
+
+  画布 108x108，图形落在半径 33 的圆内，任何启动器遮罩都不会切到主体。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- ══════ 徽章外环 ══════ -->
+    <path
+        android:pathData="M54,21 A33,33 0 1,1 54,87 A33,33 0 1,1 54,21"
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round" />
+
+    <!-- ══════ 桅杆 ══════ -->
+    <path
+        android:pathData="M54,24 L54,53.5"
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.3"
+        android:strokeLineCap="round" />
+
+    <!-- ══════ 左帆：梯形硬帆（上窄下宽）══════ -->
+    <path
+        android:pathData="M47.5,27.5 L52.3,27.5 L52.3,53 L42,53 Z"
+        android:fillColor="#000000" />
+
+    <!-- ══════ 右帆：更大，形成前后双帆 ══════ -->
+    <path
+        android:pathData="M55.7,31.5 L62.5,31.5 L68.5,53 L55.7,53 Z"
+        android:fillColor="#000000" />
+
+    <!-- ══════ 竹竿横桁（用背景色把帆面切开）══════ -->
+    <path
+        android:pathData="M46.9,34.5 L52.1,34.5 M45.9,41 L52.1,41 M44.9,47.5 L52.1,47.5 M55.9,38.5 L63.6,38.5 M55.9,45 L65.4,45"
+        android:fillColor="#00000000"
+        android:strokeColor="#00000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round" />
+
+    <!-- ══════ 船体：梯形船身，船头微翘 ══════ -->
+    <path
+        android:pathData="M34.5,55.4
+                          Q36,53.5 39.5,53.5
+                          L74,53.5
+                          L68,62
+                          Q60,63.4 54,63.4
+                          Q48,63.4 40,62
+                          Z"
+        android:fillColor="#000000" />
+
+    <!-- ══════ 波浪（三道，由近及远渐短渐淡）══════ -->
+    <path
+        android:pathData="M35,69 Q41,65.2 47,69 T59,69 T71,69"
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M39,74.5 Q44.5,70.7 50,74.5 T61,74.5"
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:alpha="0.67" />
+
+    <path
+        android:pathData="M45,79.5 Q49,76.5 53,79.5 T61,79.5"
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:alpha="0.4" />
+
+</vector>
